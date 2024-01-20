@@ -1,14 +1,15 @@
-require('dotenv').config()
+require('dotenv').config();
 const express = require('express');
 const User = require('../models/User');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const fetchuser = require('../middleware/fetchuser');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// Create a User using: POST "/api/auth/register". Doesn't require Auth
+// ROUTE: 1 - Create a User using: POST "/api/auth/register". No Login Required
 router.post('/register', [
     body('username', 'Enter a valid Username').isLength({ min: 3 }),
     body('firstName', 'Enter a valid First Name').isLength({ min: 3 }),
@@ -16,6 +17,7 @@ router.post('/register', [
     body('email', 'Enter a valid E-mail').isEmail(),
     body('password', 'Password must have a minimum of 5 characters').isLength({ min: 5 }),
 ], async (req, res) => {
+    // If there are errors, return Bad Request and the errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
@@ -54,14 +56,66 @@ router.post('/register', [
         }
 
         const authToken = jwt.sign(data, JWT_SECRET);
-        console.log(authToken);
 
-        res.json({authToken});
+        res.json({ authToken });
         // res.json(user);
 
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// ROUTE: 2 - Authenticate a User using: POST "/api/auth/login". No Login Required
+router.post('/login', [
+    body('email', 'Enter a valid E-mail').isEmail(),
+    body('password', 'Password cannot be blank').exists(),
+], async (req, res) => {
+    // If there are errors, return Bad Request and the errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { email, password } = req.body;
+    try {
+        // Check if the User with the email exists or not
+        const existingUser = await User.findOne({ email: req.body.email });
+        if (!existingUser) {
+            return res.status(400).json({ error: 'Sorry a User with this E-mail does not Exists!' });
+        }
+
+        const verifyPassword = await bcrypt.compare(password, existingUser.password);
+        if (!verifyPassword) {
+            return res.status(400).json({ error: 'Please try to login with correct credentials' });
+        }
+
+        const data = {
+            user: {
+                id: existingUser.id
+            }
+        }
+        const authToken = jwt.sign(data, JWT_SECRET);
+        res.json({ authToken });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+
+});
+
+// ROUTE: 3 - Get User Details using: POST "/api/auth/getuser". Login Required
+router.post('/getuser', fetchuser, async (req, res) => {
+
+    try {
+        userId = req.user.id;
+        const user = await User.findById(userId).select("-password")
+        res.send(user);
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
 });
 
