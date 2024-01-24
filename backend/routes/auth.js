@@ -73,8 +73,10 @@ router.post('/login', [
 ], async (req, res) => {
     // If there are errors, return Bad Request and the errors
     const errors = validationResult(req);
+    let success = false;
     if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+        success = false;
+        return res.status(400).json({ success, errors: errors.array() });
     }
 
     const { email, password } = req.body;
@@ -82,12 +84,14 @@ router.post('/login', [
         // Check if the User with the email exists or not
         const existingUser = await User.findOne({ email: req.body.email });
         if (!existingUser) {
-            return res.status(400).json({ error: 'Sorry a User with this E-mail does not Exists!' });
+            success = false;
+            return res.status(400).json({ success, error: 'Sorry a User with this E-mail does not Exists!' });
         }
 
         const verifyPassword = await bcrypt.compare(password, existingUser.password);
         if (!verifyPassword) {
-            return res.status(400).json({ error: 'Please try to login with correct credentials' });
+            success = false;
+            return res.status(400).json({ success, error: 'Please try to login with correct credentials' });
         }
 
         const data = {
@@ -96,7 +100,8 @@ router.post('/login', [
             }
         }
         const authToken = jwt.sign(data, JWT_SECRET);
-        res.json({ authToken });
+        success = true;
+        res.json({ success, authToken });
 
     } catch (error) {
         console.error(error);
